@@ -99,6 +99,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     const [waveNumber, setWaveNumber] = useState<number>(1);
     const [sector, setSector] = useState<number>(1);
     const [musicEnabled, setMusicEnabled] = useState<boolean>(true); // Enabled by default
+    const [countdown, setCountdown] = useState<number>(0); // 3-sec countdown
+    const [waveAnnouncement, setWaveAnnouncement] = useState<string>(''); // Tekken-style announcement
     const lastSpawnCheck = useRef<number>(0);
 
     // Images (Background only)
@@ -345,11 +347,24 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                         }
                     }
                 } else {
-                    // Wave cleared! Generate options once
-                    soundManager.current.playWaveComplete(); // Victory sound
-                    const options = upgradeSystem.current.generateUpgradeOptions();
-                    setUpgradeOptions(options);
-                    setShowUpgradeMenu(true);
+                    // Wave cleared! Show countdown then generate upgrades
+                    soundManager.current.playWaveComplete();
+                    setCountdown(3);
+                    
+                    // Countdown timer
+                    const timer = setInterval(() => {
+                        setCountdown(prev => {
+                            if (prev <= 1) {
+                                clearInterval(timer);
+                                // Generate upgrades after countdown
+                                const options = upgradeSystem.current.generateUpgradeOptions();
+                                setUpgradeOptions(options);
+                                setShowUpgradeMenu(true);
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
                 }
             }
 
@@ -637,7 +652,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             ctx.fillStyle = '#fff';
             ctx.shadowColor = '#00ffff';
             ctx.shadowBlur = 5;
-            ctx.fillText(`HP: ${Math.floor(s.player.health)}/${upgradeSystem.current.maxHealth}`, barX, barY - 5);
+            ctx.fillText(`HP: ${Math.floor(state.current.player.health)}/${upgradeSystem.current.maxHealth}`, barX, barY - 5);
             ctx.shadowBlur = 0;
             
             // Bar background
@@ -645,7 +660,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             ctx.fillRect(barX, barY, barWidth, barHeight);
             
             // Bar fill
-            const healthPercent = s.player.health / upgradeSystem.current.maxHealth;
+            const healthPercent = state.current.player.health / upgradeSystem.current.maxHealth;
             ctx.fillStyle = healthPercent > 0.3 ? '#00ffff' : '#ff0000';
             ctx.shadowColor = ctx.fillStyle;
             ctx.shadowBlur = 15;
@@ -889,13 +904,18 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             
             // Start next wave
             if (waveManager.current.nextWave()) {
-                setWaveNumber(waveManager.current.getWaveNumber());
-                setSector(waveManager.current.getSector());
+                const newWave = waveManager.current.getWaveNumber();
+                const newSector = waveManager.current.getSector();
+                setWaveNumber(newWave);
+                setSector(newSector);
                 waveManager.current.startWave();
                 
+                // Show wave announcement (Tekken style)
+                const isBossWave = newWave % 5 === 0;
+                setWaveAnnouncement(isBossWave ? 'BOSS FIGHT!' : `WAVE ${newWave}`);
+                setTimeout(() => setWaveAnnouncement(''), 2000);
+                
                 // Change music when sector changes
-                const newSector = waveManager.current.getSector();
-                setSector(newSector);
                 if (musicEnabled && !state.current.boss) {
                     musicManager.current.play(`sector${newSector}` as any);
                 }
@@ -917,9 +937,21 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         
         // Start next wave
         if (waveManager.current.nextWave()) {
-            setWaveNumber(waveManager.current.getWaveNumber());
-            setSector(waveManager.current.getSector());
+            const newWave = waveManager.current.getWaveNumber();
+            const newSector = waveManager.current.getSector();
+            setWaveNumber(newWave);
+            setSector(newSector);
             waveManager.current.startWave();
+            
+            // Show wave announcement (Tekken style)
+            const isBossWave = newWave % 5 === 0;
+            setWaveAnnouncement(isBossWave ? 'BOSS FIGHT!' : `WAVE ${newWave}`);
+            setTimeout(() => setWaveAnnouncement(''), 2000);
+            
+            // Change music when sector changes
+            if (musicEnabled && !state.current.boss) {
+                musicManager.current.play(`sector${newSector}` as any);
+            }
         } else {
             // Campaign complete!
             alert('Campaign Complete! You defeated all 25 waves!');
@@ -948,6 +980,43 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 />
             )}
 
+            {/* Countdown Timer (when generating upgrades) */}
+            {countdown > 0 && (
+                <div style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: '8rem',
+                    fontWeight: 'bold',
+                    color: '#00ffff',
+                    textShadow: '0 0 40px #00ffff',
+                    zIndex: 200,
+                    animation: 'pulse 0.5s ease-in-out'
+                }}>
+                    {countdown}
+                </div>
+            )}
+
+            {/* Wave Announcement (Tekken style) */}
+            {waveAnnouncement && (
+                <div style={{
+                    position: 'fixed',
+                    top: '35%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    fontSize: '5rem',
+                    fontWeight: 'bold',
+                    color: waveAnnouncement.includes('BOSS') ? '#ff0055' : '#ffaa00',
+                    textShadow: `0 0 30px ${waveAnnouncement.includes('BOSS') ? '#ff0055' : '#ffaa00'}`,
+                    zIndex: 150,
+                    letterSpacing: '0.5rem',
+                    animation: 'slideIn 0.5s ease-out',
+                    fontFamily: "'Outfit', monospace"
+                }}>
+                    {waveAnnouncement}
+                </div>
+            )}
 
             {/* Exit / Controls */}
             <div style={{ position: 'absolute', bottom: 20, right: 20, display: 'flex', gap: '20px', alignItems: 'flex-end', zIndex: 20 }}>
