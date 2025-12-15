@@ -16,7 +16,7 @@ export const ENEMY_DEFINITIONS: Record<EnemyType, EnemyDefinition> = {
     scout: {
         type: 'scout',
         hp: 1,
-        speed: 4,
+        speed: 2.5, // Reduced from 4
         size: 20,
         color: '#ff3300',
         scoreValue: 50,
@@ -25,7 +25,7 @@ export const ENEMY_DEFINITIONS: Record<EnemyType, EnemyDefinition> = {
     stinger: {
         type: 'stinger',
         hp: 3,
-        speed: 2,
+        speed: 1.2, // Reduced from 2
         size: 30,
         color: '#ff0055',
         scoreValue: 200,
@@ -34,7 +34,7 @@ export const ENEMY_DEFINITIONS: Record<EnemyType, EnemyDefinition> = {
     weaver: {
         type: 'weaver',
         hp: 5,
-        speed: 3,
+        speed: 1.8, // Reduced from 3
         size: 25,
         color: '#aa00ff',
         scoreValue: 300,
@@ -43,7 +43,7 @@ export const ENEMY_DEFINITIONS: Record<EnemyType, EnemyDefinition> = {
     splitter: {
         type: 'splitter',
         hp: 6,
-        speed: 2.5,
+        speed: 1.5, // Reduced from 2.5
         size: 28,
         color: '#ffaa00',
         scoreValue: 400,
@@ -52,7 +52,7 @@ export const ENEMY_DEFINITIONS: Record<EnemyType, EnemyDefinition> = {
     shieldbearer: {
         type: 'shieldbearer',
         hp: 8,
-        speed: 1.5,
+        speed: 1.0, // Reduced from 1.5
         size: 35,
         color: '#0088ff',
         scoreValue: 500,

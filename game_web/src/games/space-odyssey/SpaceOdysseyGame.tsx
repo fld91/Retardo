@@ -249,12 +249,22 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
             // Spawn Enemies (Wave-based)
             if (waveManager.current.shouldSpawnEnemy(s.enemies.length)) {
-                const edge = Math.floor(Math.random() * 4);
+                // Spawn from top and sides only (0=top, 1=right, 2=left)
+                const edge = Math.floor(Math.random() * 3);
                 let ex = 0, ey = 0;
-                if (edge === 0) { ex = Math.random() * w; ey = -50; }
-                else if (edge === 1) { ex = w + 50; ey = Math.random() * h; }
-                else if (edge === 2) { ex = Math.random() * w; ey = h + 50; }
-                else { ex = -50; ey = Math.random() * h; }
+                if (edge === 0) { 
+                    // Top
+                    ex = Math.random() * w; 
+                    ey = -50; 
+                } else if (edge === 1) { 
+                    // Right
+                    ex = w + 50; 
+                    ey = Math.random() * h; 
+                } else { 
+                    // Left
+                    ex = -50; 
+                    ey = Math.random() * h; 
+                }
 
                 // Get available enemy types from wave
                 const waveData = waveManager.current.getCurrentWave();
@@ -279,8 +289,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             }
 
             // Check wave completion
-            if (waveManager.current.isWaveComplete(s.enemies.length)) {
-                // Wave cleared!
+            if (waveManager.current.isWaveComplete(s.enemies.length) && !showUpgradeMenu) {
+                // Wave cleared! Generate options once
                 const options = upgradeSystem.current.generateUpgradeOptions();
                 setUpgradeOptions(options);
                 setShowUpgradeMenu(true);
