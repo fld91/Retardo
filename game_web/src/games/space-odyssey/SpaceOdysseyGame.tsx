@@ -347,24 +347,11 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                         }
                     }
                 } else {
-                    // Wave cleared! Show countdown then generate upgrades
+                    // Wave cleared! Show upgrades immediately
                     soundManager.current.playWaveComplete();
-                    setCountdown(3);
-                    
-                    // Countdown timer
-                    const timer = setInterval(() => {
-                        setCountdown(prev => {
-                            if (prev <= 1) {
-                                clearInterval(timer);
-                                // Generate upgrades after countdown
-                                const options = upgradeSystem.current.generateUpgradeOptions();
-                                setUpgradeOptions(options);
-                                setShowUpgradeMenu(true);
-                                return 0;
-                            }
-                            return prev - 1;
-                        });
-                    }, 1000);
+                    const options = upgradeSystem.current.generateUpgradeOptions();
+                    setUpgradeOptions(options);
+                    setShowUpgradeMenu(true);
                 }
             }
 
@@ -978,24 +965,6 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     currentHp={state.current.boss.hp}
                     maxHp={state.current.boss.maxHp}
                 />
-            )}
-
-            {/* Countdown Timer (when generating upgrades) */}
-            {countdown > 0 && (
-                <div style={{
-                    position: 'fixed',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    fontSize: '8rem',
-                    fontWeight: 'bold',
-                    color: '#00ffff',
-                    textShadow: '0 0 40px #00ffff',
-                    zIndex: 200,
-                    animation: 'pulse 0.5s ease-in-out'
-                }}>
-                    {countdown}
-                </div>
             )}
 
             {/* Wave Announcement (Tekken style) */}
