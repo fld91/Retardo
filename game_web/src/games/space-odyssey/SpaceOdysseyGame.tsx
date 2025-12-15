@@ -887,7 +887,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 // Change music when sector changes
                 const newSector = waveManager.current.getSector();
                 setSector(newSector);
-                if (musicEnabled && !s.boss) {
+                if (musicEnabled && !state.current.boss) {
                     musicManager.current.play(`sector${newSector}` as any);
                 }
                 
