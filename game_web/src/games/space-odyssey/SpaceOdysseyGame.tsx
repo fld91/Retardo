@@ -98,7 +98,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     const [upgradeOptions, setUpgradeOptions] = useState<Upgrade[]>([]);
     const [waveNumber, setWaveNumber] = useState<number>(1);
     const [sector, setSector] = useState<number>(1);
-    const [musicEnabled, setMusicEnabled] = useState<boolean>(false); // Disabled by default
+    const [musicEnabled, setMusicEnabled] = useState<boolean>(true); // Enabled by default
+    const lastSpawnCheck = useRef<number>(0);
 
     // Images (Background only)
     const imgBg = useRef<HTMLImageElement>(new Image());
@@ -264,8 +265,11 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             const s = state.current;
             const now = Date.now();
             
-            // Limit enemy spawning checks to reduce CPU
-            const shouldCheckSpawn = now % 100 === 0; // Only check every 100ms
+            // Throttle spawn checks to every 100ms instead of 60fps
+            const shouldCheckSpawn = now - lastSpawnCheck.current >= 100;
+            if (shouldCheckSpawn) {
+                lastSpawnCheck.current = now;
+            }
 
             // Spawn Enemies (Wave-based) - Throttled
             if (shouldCheckSpawn && waveManager.current.shouldSpawnEnemy(s.enemies.length)) {
@@ -342,6 +346,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     }
                 } else {
                     // Wave cleared! Generate options once
+                    soundManager.current.playWaveComplete(); // Victory sound
                     const options = upgradeSystem.current.generateUpgradeOptions();
                     setUpgradeOptions(options);
                     setShowUpgradeMenu(true);
@@ -417,12 +422,13 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
                 // Collision with Player
                 const dist = Math.hypot(b.x - s.player.x, b.y - s.player.y);
-                if (dist < 20) { // Player radius approx 20
+                if (dist < 20) {
                     const damage = 10 * (1 - upgradeSystem.current.damageResistance);
                     s.player.health -= damage;
                     setPlayerHp(s.player.health);
                     s.enemyBullets.splice(i, 1);
                     spawnParticles(b.x, b.y, '#00ffff', 5);
+                    soundManager.current.playExplosion(); // Enemy hit sound
                     if (s.player.health <= 0 && !s.gameOver) {
                         s.gameOver = true;
                         setGameOver(true);
@@ -546,7 +552,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     const b = s.bullets[i];
                     const distToBoss = Math.hypot(b.x - s.boss.x, b.y - s.boss.y);
                     if (distToBoss < s.boss.size) {
-                        s.boss.hp -= 1;
+                        const damage = upgradeSystem.current.bulletDamage;
+                        s.boss.hp -= damage;
                         s.bullets.splice(i, 1);
                         spawnParticles(b.x, b.y, s.boss.color, 5);
                         
@@ -589,20 +596,16 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         };
 
         const draw = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-            // Background
-            if (imgBg.current.complete) {
-                const ptrn = ctx.createPattern(imgBg.current, 'repeat');
-                if (ptrn) {
-                    ctx.save();
-                    ctx.translate(-state.current.player.x * 0.1, -state.current.player.y * 0.1);
-                    ctx.fillStyle = ptrn;
-                    ctx.fillRect(state.current.player.x * 0.1, state.current.player.y * 0.1, w, h);
-                    ctx.restore();
-                } else {
-                    ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
-                }
-            } else {
-                ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
+            // Black background with subtle stars
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            
+            // Draw subtle static stars (performance optimized)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            for (let i = 0; i < 50; i++) {
+                const x = (i * 123.456) % w;
+                const y = (i * 234.567) % h;
+                ctx.fillRect(x, y, 1, 1);
             }
 
             // HUD - Render on canvas
@@ -624,25 +627,28 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             ctx.fillStyle = '#fff';
             ctx.fillText(`SECTOR ${sector} - WAVE ${waveNumber}`, 20, 110);
             
-            // Health Bar (top right)
-            const barWidth = 300;
-            const barHeight = 20;
+            // Health Bar (top right) - More visible
+            const barWidth = 250;
+            const barHeight = 25;
             const barX = w - barWidth - 20;
             const barY = 20;
             
-            ctx.font = '12px monospace';
+            ctx.font = 'bold 14px monospace';
             ctx.fillStyle = '#fff';
-            ctx.fillText(`SHIELD: ${Math.floor(state.current.player.health)}/${upgradeSystem.current.maxHealth}`, barX, barY - 5);
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 5;
+            ctx.fillText(`HP: ${Math.floor(s.player.health)}/${upgradeSystem.current.maxHealth}`, barX, barY - 5);
+            ctx.shadowBlur = 0;
             
             // Bar background
-            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
             ctx.fillRect(barX, barY, barWidth, barHeight);
             
             // Bar fill
-            const healthPercent = state.current.player.health / upgradeSystem.current.maxHealth;
+            const healthPercent = s.player.health / upgradeSystem.current.maxHealth;
             ctx.fillStyle = healthPercent > 0.3 ? '#00ffff' : '#ff0000';
             ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 15;
             ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
             ctx.shadowBlur = 0;
 

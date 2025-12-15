@@ -103,6 +103,48 @@ export class SoundManager {
         }
     }
 
+    playWaveComplete() {
+        if (!this.ctx) return;
+        
+        const now = Date.now();
+        if (now - this.lastExplosionTime < this.MIN_EXPLOSION_INTERVAL) return;
+        this.lastExplosionTime = now;
+        
+        try {
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+            
+            // Triumphant ascending tone
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, this.ctx.currentTime); // A4
+            osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.3); // A5
+
+            gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+
+            osc.start(this.ctx.currentTime);
+            osc.stop(this.ctx.currentTime + 0.4);
+            
+            osc.onended = () => {
+                try {
+                    osc.disconnect();
+                    gain.disconnect();
+                } catch (e) {
+                    // Already disconnected
+                }
+            };
+        } catch (e) {
+            // Silently fail
+        }
+    }
+
     resume() {
         if (this.ctx?.state === 'suspended') {
             this.ctx.resume().catch(() => {
