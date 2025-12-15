@@ -98,7 +98,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     const [upgradeOptions, setUpgradeOptions] = useState<Upgrade[]>([]);
     const [waveNumber, setWaveNumber] = useState<number>(1);
     const [sector, setSector] = useState<number>(1);
-    const [musicEnabled, setMusicEnabled] = useState<boolean>(true);
+    const [musicEnabled, setMusicEnabled] = useState<boolean>(false); // Disabled by default
 
     // Images (Background only)
     const imgBg = useRef<HTMLImageElement>(new Image());
