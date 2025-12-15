@@ -263,9 +263,12 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
             const s = state.current;
             const now = Date.now();
+            
+            // Limit enemy spawning checks to reduce CPU
+            const shouldCheckSpawn = now % 100 === 0; // Only check every 100ms
 
-            // Spawn Enemies (Wave-based)
-            if (waveManager.current.shouldSpawnEnemy(s.enemies.length)) {
+            // Spawn Enemies (Wave-based) - Throttled
+            if (shouldCheckSpawn && waveManager.current.shouldSpawnEnemy(s.enemies.length)) {
                 // Spawn from top and sides only (0=top, 1=right, 2=left)
                 const edge = Math.floor(Math.random() * 3);
                 let ex = 0, ey = 0;
