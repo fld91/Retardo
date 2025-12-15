@@ -361,10 +361,10 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     setPlayerHp(s.player.health);
                     s.enemyBullets.splice(i, 1);
                     spawnParticles(b.x, b.y, '#00ffff', 5);
-                    soundManager.current.playExplosion(); // Reuse sound
-                    if (s.player.health <= 0) {
+                    if (s.player.health <= 0 && !s.gameOver) {
                         s.gameOver = true;
                         setGameOver(true);
+                        soundManager.current.playExplosion();
                     }
                     continue;
                 }
@@ -402,11 +402,14 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
                 // Crash into player
                 if (distToPlayer < e.size + 15) {
-                    s.player.health = 0;
-                    setPlayerHp(0);
-                    s.gameOver = true;
-                    setGameOver(true);
-                    spawnParticles(s.player.x, s.player.y, '#00ffff', 50);
+                    if (!s.gameOver) {
+                        s.player.health = 0;
+                        setPlayerHp(0);
+                        s.gameOver = true;
+                        setGameOver(true);
+                        spawnParticles(s.player.x, s.player.y, '#00ffff', 50);
+                        soundManager.current.playExplosion();
+                    }
                 }
 
                 // Shooting enemies (stinger, weaver)
