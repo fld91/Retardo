@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SoundManager } from '../../shared/SoundManager';
+import { MusicManager } from '../../shared/MusicManager';
 import { WaveManager } from './systems/WaveManager';
 import { UpgradeSystem } from './systems/UpgradeSystem';
 import UpgradeMenu from './components/UpgradeMenu';
@@ -87,6 +88,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
     const sensitivityRef = useRef<number>(4.0);
     const soundManager = useRef<SoundManager>(new SoundManager());
+    const musicManager = useRef<MusicManager>(new MusicManager());
     const wsRef = useRef<WebSocket | null>(null);
     const waveManager = useRef<WaveManager>(new WaveManager());
     const upgradeSystem = useRef<UpgradeSystem>(new UpgradeSystem());
@@ -96,6 +98,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     const [upgradeOptions, setUpgradeOptions] = useState<Upgrade[]>([]);
     const [waveNumber, setWaveNumber] = useState<number>(1);
     const [sector, setSector] = useState<number>(1);
+    const [musicEnabled, setMusicEnabled] = useState<boolean>(true);
 
     // Images (Background only)
     const imgBg = useRef<HTMLImageElement>(new Image());
@@ -105,7 +108,16 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         sensitivityRef.current = sensitivity;
         // Start first wave on mount
         waveManager.current.startWave();
-    }, [sensitivity]);
+        
+        // Start sector 1 music
+        if (musicEnabled) {
+            musicManager.current.play('sector1');
+        }
+        
+        return () => {
+            musicManager.current.stop();
+        };
+    }, [sensitivity, musicEnabled]);
 
     const state = useRef<GameState>({
         player: {
@@ -319,6 +331,11 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                             lastFire: 0,
                             lastAction: 0
                         };
+                        
+                        // Play boss music
+                        if (musicEnabled) {
+                            musicManager.current.play('boss');
+                        }
                     }
                 } else {
                     // Wave cleared! Generate options once
@@ -541,6 +558,12 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                             spawnParticles(s.boss.x, s.boss.y, s.boss.color, 50);
                             soundManager.current.playExplosion();
                             s.boss = null;
+                            
+                            // Resume sector music after boss
+                            const currentSector = waveManager.current.getSector();
+                            if (musicEnabled) {
+                                musicManager.current.play(`sector${currentSector}` as any);
+                            }
                             
                             // Show upgrade menu after boss
                             const options = upgradeSystem.current.generateUpgradeOptions();
@@ -861,6 +884,13 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 setSector(waveManager.current.getSector());
                 waveManager.current.startWave();
                 
+                // Change music when sector changes
+                const newSector = waveManager.current.getSector();
+                setSector(newSector);
+                if (musicEnabled && !s.boss) {
+                    musicManager.current.play(`sector${newSector}` as any);
+                }
+                
                 // Reset player health for new wave
                 state.current.player.health = upgradeSystem.current.maxHealth;
                 state.current.player.maxHealth = upgradeSystem.current.maxHealth;
@@ -912,6 +942,37 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
             {/* Exit / Controls */}
             <div style={{ position: 'absolute', bottom: 20, right: 20, display: 'flex', gap: '20px', alignItems: 'flex-end', zIndex: 20 }}>
+                {/* Music Toggle */}
+                <button
+                    onClick={() => {
+                        const newState = !musicEnabled;
+                        setMusicEnabled(newState);
+                        if (newState) {
+                            const currentSector = waveManager.current.getSector();
+                            if (state.current.boss) {
+                                musicManager.current.play('boss');
+                            } else {
+                                musicManager.current.play(`sector${currentSector}` as any);
+                            }
+                        } else {
+                            musicManager.current.stop();
+                        }
+                    }}
+                    style={{
+                        background: musicEnabled ? '#00ff88' : '#333',
+                        color: 'white',
+                        border: '2px solid white',
+                        padding: '15px 20px',
+                        borderRadius: '10px',
+                        fontSize: '1.5rem',
+                        cursor: 'pointer',
+                        boxShadow: musicEnabled ? '0 0 15px #00ff88' : 'none',
+                        transition: 'all 0.3s'
+                    }}
+                >
+                    {musicEnabled ? '🎵' : '🔇'}
+                </button>
+                
                 {/* Sensitivity */}
                 <div style={{ background: 'rgba(0,0,0,0.6)', padding: 15, borderRadius: 10, color: 'white', fontFamily: 'monospace' }}>
                     <label>SENSITIVITY: {sensitivity}</label>
