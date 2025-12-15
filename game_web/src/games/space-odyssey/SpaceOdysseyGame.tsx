@@ -242,7 +242,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         };
 
         const update = (w: number, h: number) => {
-            if (state.current.gameOver) return;
+            if (state.current.gameOver || showUpgradeMenu) return;
 
             const s = state.current;
             const now = Date.now();
