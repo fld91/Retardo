@@ -101,6 +101,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     const [musicEnabled, setMusicEnabled] = useState<boolean>(true); // Enabled by default
     const [countdown, setCountdown] = useState<number>(0); // 3-sec countdown
     const [waveAnnouncement, setWaveAnnouncement] = useState<string>(''); // Tekken-style announcement
+    const [upgradesGenerated, setUpgradesGenerated] = useState<boolean>(false); // Prevent regeneration
     const lastSpawnCheck = useRef<number>(0);
 
     // Images (Background only)
@@ -347,11 +348,14 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                         }
                     }
                 } else {
-                    // Wave cleared! Show upgrades immediately
-                    soundManager.current.playWaveComplete();
-                    const options = upgradeSystem.current.generateUpgradeOptions();
-                    setUpgradeOptions(options);
-                    setShowUpgradeMenu(true);
+                    // Wave cleared! Show upgrades immediately (only once)
+                    if (!upgradesGenerated) {
+                        soundManager.current.playWaveComplete();
+                        const options = upgradeSystem.current.generateUpgradeOptions();
+                        setUpgradeOptions(options);
+                        setShowUpgradeMenu(true);
+                        setUpgradesGenerated(true);
+                    }
                 }
             }
 
@@ -431,6 +435,16 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     s.enemyBullets.splice(i, 1);
                     spawnParticles(b.x, b.y, '#00ffff', 5);
                     soundManager.current.playExplosion(); // Enemy hit sound
+                    
+                    // Send strong vibration to phone controller
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({
+                            type: 'vibrate',
+                            duration: 200, // Strong 200ms vibration
+                            intensity: 'heavy'
+                        }));
+                    }
+                    
                     if (s.player.health <= 0 && !s.gameOver) {
                         s.gameOver = true;
                         setGameOver(true);
@@ -554,7 +568,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     const b = s.bullets[i];
                     const distToBoss = Math.hypot(b.x - s.boss.x, b.y - s.boss.y);
                     if (distToBoss < s.boss.size) {
-                        const damage = upgradeSystem.current.bulletDamage;
+                        const damage = 1 * upgradeSystem.current.weaponDamageMultiplier;
                         s.boss.hp -= damage;
                         s.bullets.splice(i, 1);
                         spawnParticles(b.x, b.y, s.boss.color, 5);
@@ -888,6 +902,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         if (upgradeSystem.current.purchaseUpgrade(upgrade)) {
             setScrap(upgradeSystem.current.getScrap());
             setShowUpgradeMenu(false);
+            setUpgradesGenerated(false); // Reset for next wave
             
             // Start next wave
             if (waveManager.current.nextWave()) {
@@ -921,6 +936,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
 
     const handleSkipUpgrade = () => {
         setShowUpgradeMenu(false);
+        setUpgradesGenerated(false); // Reset for next wave
         
         // Start next wave
         if (waveManager.current.nextWave()) {
