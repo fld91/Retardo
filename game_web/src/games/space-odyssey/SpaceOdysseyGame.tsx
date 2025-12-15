@@ -3,15 +3,17 @@ import { SoundManager } from '../../shared/SoundManager';
 import { WaveManager } from './systems/WaveManager';
 import { UpgradeSystem } from './systems/UpgradeSystem';
 import UpgradeMenu from './components/UpgradeMenu';
+import BossHealthBar from './components/BossHealthBar';
 import type { Upgrade, EnemyType } from './types';
 import { getEnemyDefinition, EnemyAI } from './entities/EnemyFactory';
+import { BOSS_DEFINITIONS, BossAI, type Boss } from './entities/BossFactory';
 
 // Types
 interface GameState {
     player: {
         x: number;
         y: number;
-        angle: number; // Radian
+        angle: number;
         color: string;
         health: number;
         maxHealth: number;
@@ -23,6 +25,7 @@ interface GameState {
     score: number;
     scrap: number;
     gameOver: boolean;
+    boss: Boss | null;
 }
 
 interface Bullet {
@@ -119,7 +122,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         particles: [],
         score: 0,
         scrap: 0,
-        gameOver: false
+        gameOver: false,
+        boss: null
     });
 
     // Reset Game
@@ -139,7 +143,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             particles: [],
             score: 0,
             scrap: 0,
-            gameOver: false
+            gameOver: false,
+            boss: null
         };
         waveManager.current.reset();
         upgradeSystem.current.reset();
@@ -289,11 +294,38 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             }
 
             // Check wave completion
-            if (waveManager.current.isWaveComplete(s.enemies.length) && !showUpgradeMenu) {
-                // Wave cleared! Generate options once
-                const options = upgradeSystem.current.generateUpgradeOptions();
-                setUpgradeOptions(options);
-                setShowUpgradeMenu(true);
+            if (waveManager.current.isWaveComplete(s.enemies.length) && !showUpgradeMenu && !s.boss) {
+                const currentWave = waveManager.current.getWaveNumber();
+                const isBossWave = currentWave % 5 === 0; // Boss every 5 waves
+                
+                if (isBossWave) {
+                    // Spawn boss
+                    const bossNumber = Math.ceil(currentWave / 5);
+                    const bossIndex = Math.min(bossNumber, 2); // Max 2 bosses defined for now
+                    const bossDef = BOSS_DEFINITIONS[bossIndex];
+                    
+                    if (bossDef) {
+                        s.boss = {
+                            id: `boss_${bossNumber}`,
+                            name: bossDef.name,
+                            x: w / 2,
+                            y: -100, // Spawn from top
+                            angle: Math.PI / 2,
+                            hp: bossDef.hp,
+                            maxHp: bossDef.hp,
+                            size: bossDef.size,
+                            color: bossDef.color,
+                            currentPhase: bossIndex,
+                            lastFire: 0,
+                            lastAction: 0
+                        };
+                    }
+                } else {
+                    // Wave cleared! Generate options once
+                    const options = upgradeSystem.current.generateUpgradeOptions();
+                    setUpgradeOptions(options);
+                    setShowUpgradeMenu(true);
+                }
             }
 
             // Update Bullets (Player)
@@ -434,6 +466,88 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                             color: e.color
                         });
                         e.lastFire = now;
+                    }
+                }
+            }
+
+            // Update Boss
+            if (s.boss) {
+                const spawnScout = () => {
+                    const scoutDef = getEnemyDefinition('scout');
+                    const angle = Math.random() * Math.PI * 2;
+                    s.enemies.push({
+                        id: `boss_scout_${Date.now()}`,
+                        x: s.boss!.x + Math.cos(angle) * 100,
+                        y: s.boss!.y + Math.sin(angle) * 100,
+                        speed: scoutDef.speed,
+                        size: scoutDef.size,
+                        hp: scoutDef.hp,
+                        maxHp: scoutDef.hp,
+                        angle: 0,
+                        type: 'scout',
+                        lastFire: 0,
+                        color: scoutDef.color
+                    });
+                };
+
+                BossAI.update(s.boss, s.player.x, s.player.y, deltaTime, spawnScout);
+
+                // Boss collision with player
+                const bossDistToPlayer = Math.hypot(s.boss.x - s.player.x, s.boss.y - s.player.y);
+                if (bossDistToPlayer < s.boss.size + 15 && !s.gameOver) {
+                    s.player.health = 0;
+                    setPlayerHp(0);
+                    s.gameOver = true;
+                    setGameOver(true);
+                    spawnParticles(s.player.x, s.player.y, '#00ffff', 50);
+                    soundManager.current.playExplosion();
+                }
+
+                // Boss shooting
+                const bossDef = BOSS_DEFINITIONS[s.boss.currentPhase];
+                if (bossDef && now - s.boss.lastFire > 1000) {
+                    const angleToPlayer = Math.atan2(s.player.y - s.boss.y, s.player.x - s.boss.x);
+                    // Spread shot
+                    for (let i = -1; i <= 1; i++) {
+                        s.enemyBullets.push({
+                            x: s.boss.x,
+                            y: s.boss.y,
+                            angle: angleToPlayer + (i * 0.2),
+                            speed: 6,
+                            life: 120,
+                            color: s.boss.color
+                        });
+                    }
+                    s.boss.lastFire = now;
+                }
+
+                // Boss hit by bullets
+                for (let i = s.bullets.length - 1; i >= 0; i--) {
+                    const b = s.bullets[i];
+                    const distToBoss = Math.hypot(b.x - s.boss.x, b.y - s.boss.y);
+                    if (distToBoss < s.boss.size) {
+                        s.boss.hp -= 1;
+                        s.bullets.splice(i, 1);
+                        spawnParticles(b.x, b.y, s.boss.color, 5);
+                        
+                        if (s.boss.hp <= 0) {
+                            // Boss defeated!
+                            const bossDef = BOSS_DEFINITIONS[s.boss.currentPhase];
+                            s.score += bossDef.scoreValue;
+                            s.scrap += bossDef.scrapValue;
+                            setScore(s.score);
+                            setScrap(s.scrap);
+                            upgradeSystem.current.addScrap(bossDef.scrapValue);
+                            spawnParticles(s.boss.x, s.boss.y, s.boss.color, 50);
+                            soundManager.current.playExplosion();
+                            s.boss = null;
+                            
+                            // Show upgrade menu after boss
+                            const options = upgradeSystem.current.generateUpgradeOptions();
+                            setUpgradeOptions(options);
+                            setShowUpgradeMenu(true);
+                        }
+                        break;
                     }
                 }
             }
@@ -647,6 +761,43 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 ctx.restore();
             }
 
+            // Boss Rendering
+            if (state.current.boss) {
+                const boss = state.current.boss;
+                ctx.save();
+                ctx.translate(boss.x, boss.y);
+                ctx.rotate(boss.angle);
+
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = boss.color;
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = boss.color;
+
+                // Large octagon for boss
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const angle = (Math.PI / 4) * i;
+                    const x = Math.cos(angle) * boss.size;
+                    const y = Math.sin(angle) * boss.size;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+                ctx.fillStyle = `${boss.color}30`;
+                ctx.fill();
+
+                // Core glow
+                ctx.fillStyle = boss.color;
+                ctx.shadowBlur = 30;
+                ctx.beginPath();
+                ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+
             // Player (Player should be hidden if dead)
             if (!state.current.gameOver) {
                 ctx.save();
@@ -749,6 +900,14 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 />
             )}
 
+            {/* Boss Health Bar */}
+            {state.current.boss && (
+                <BossHealthBar 
+                    bossName={state.current.boss.name}
+                    currentHp={state.current.boss.hp}
+                    maxHp={state.current.boss.maxHp}
+                />
+            )}
 
 
             {/* Exit / Controls */}
