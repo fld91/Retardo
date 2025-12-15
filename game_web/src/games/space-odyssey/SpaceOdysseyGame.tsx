@@ -3,7 +3,8 @@ import { SoundManager } from '../../shared/SoundManager';
 import { WaveManager } from './systems/WaveManager';
 import { UpgradeSystem } from './systems/UpgradeSystem';
 import UpgradeMenu from './components/UpgradeMenu';
-import type { Upgrade } from './types';
+import type { Upgrade, EnemyType } from './types';
+import { getEnemyDefinition, EnemyAI } from './entities/EnemyFactory';
 
 // Types
 interface GameState {
@@ -34,14 +35,19 @@ interface Bullet {
 }
 
 interface Enemy {
+    id: string;
     x: number;
     y: number;
     speed: number;
     size: number;
     hp: number;
+    maxHp: number;
     angle: number;
-    type: 'chaser' | 'shooter';
+    type: EnemyType;
     lastFire: number;
+    color: string;
+    shield?: number;
+    orbitAngle?: number;
 }
 
 interface Particle {
@@ -248,16 +254,24 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 else if (edge === 2) { ex = Math.random() * w; ey = h + 50; }
                 else { ex = -50; ey = Math.random() * h; }
 
-                const type = Math.random() > 0.7 ? 'shooter' : 'chaser';
+                // Get available enemy types from wave
+                const waveData = waveManager.current.getCurrentWave();
+                const availableTypes = waveData.enemyTypes;
+                const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                const enemyDef = getEnemyDefinition(randomType);
 
                 s.enemies.push({
+                    id: `enemy_${Date.now()}_${Math.random()}`,
                     x: ex, y: ey,
-                    speed: type === 'chaser' ? 4 : 2,
-                    size: type === 'chaser' ? 20 : 30,
-                    hp: type === 'chaser' ? 1 : 3,
+                    speed: enemyDef.speed,
+                    size: enemyDef.size,
+                    hp: enemyDef.hp,
+                    maxHp: enemyDef.hp,
                     angle: 0,
-                    type,
-                    lastFire: 0
+                    type: enemyDef.type,
+                    lastFire: 0,
+                    color: enemyDef.color,
+                    shield: enemyDef.type === 'shieldbearer' ? 3 : undefined
                 });
                 waveManager.current.onEnemySpawned();
             }
@@ -286,18 +300,42 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                         e.hp--;
                         hit = true;
                         spawnParticles(b.x, b.y, '#ffff00', 3);
-                        if (e.hp <= 0) {
+                        // Check shield first
+                        if (e.shield && e.shield > 0) {
+                            e.shield--;
+                            hit = true;
+                            spawnParticles(b.x, b.y, '#0088ff', 3);
+                        } else if (e.hp <= 0) {
+                            const enemyDef = getEnemyDefinition(e.type);
                             s.enemies.splice(j, 1);
-                            const scoreGain = e.type === 'shooter' ? 200 : 50;
-                            const scrapGain = e.type === 'shooter' ? 30 : 15;
-                            s.score += scoreGain;
-                            s.scrap += scrapGain;
+                            s.score += enemyDef.scoreValue;
+                            s.scrap += enemyDef.scrapValue;
                             setScore(s.score);
                             setScrap(s.scrap);
-                            upgradeSystem.current.addScrap(scrapGain);
+                            upgradeSystem.current.addScrap(enemyDef.scrapValue);
                             waveManager.current.onEnemyKilled();
-                            spawnParticles(e.x, e.y, '#ff4500', 15);
+                            spawnParticles(e.x, e.y, e.color, 15);
                             soundManager.current.playExplosion();
+
+                            // Splitter special: Create 2 scouts on death
+                            if (e.type === 'splitter') {
+                                for (let k = 0; k < 2; k++) {
+                                    const scoutDef = getEnemyDefinition('scout');
+                                    s.enemies.push({
+                                        id: `scout_split_${Date.now()}_${k}`,
+                                        x: e.x + (k === 0 ? -20 : 20),
+                                        y: e.y,
+                                        speed: scoutDef.speed,
+                                        size: scoutDef.size,
+                                        hp: scoutDef.hp,
+                                        maxHp: scoutDef.hp,
+                                        angle: 0,
+                                        type: 'scout',
+                                        lastFire: 0,
+                                        color: scoutDef.color
+                                    });
+                                }
+                            }
                         }
                         break;
                     }
@@ -333,6 +371,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             }
 
             // Update Enemies
+            const deltaTime = 16; // ~60fps
             for (let i = s.enemies.length - 1; i >= 0; i--) {
                 const e = s.enemies[i];
                 const dx = s.player.x - e.x;
@@ -340,12 +379,23 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 const distToPlayer = Math.hypot(dx, dy);
                 const angleToPlayer = Math.atan2(dy, dx);
 
-                e.angle = angleToPlayer;
-
-                // Move
-                if (distToPlayer > 100 || e.type === 'chaser') {
-                    e.x += Math.cos(e.angle) * e.speed;
-                    e.y += Math.sin(e.angle) * e.speed;
+                // Use AI behaviors
+                switch (e.type) {
+                    case 'scout':
+                        EnemyAI.updateScout(e, s.player.x, s.player.y, deltaTime);
+                        break;
+                    case 'stinger':
+                        EnemyAI.updateStinger(e, s.player.x, s.player.y, deltaTime);
+                        break;
+                    case 'weaver':
+                        EnemyAI.updateWeaver(e, s.player.x, s.player.y, deltaTime);
+                        break;
+                    case 'splitter':
+                        EnemyAI.updateSplitter(e, s.player.x, s.player.y, deltaTime);
+                        break;
+                    case 'shieldbearer':
+                        EnemyAI.updateShieldbearer(e, s.player.x, s.player.y, deltaTime);
+                        break;
                 }
 
                 // Crash into player
@@ -357,15 +407,16 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     spawnParticles(s.player.x, s.player.y, '#00ffff', 50);
                 }
 
-                // Shoot
-                if (e.type === 'shooter' && now - e.lastFire > 2000) {
+                // Shooting enemies (stinger, weaver)
+                const canShoot = e.type === 'stinger' || e.type === 'weaver';
+                if (canShoot && now - e.lastFire > 2000) {
                     if (distToPlayer < 600) {
                         s.enemyBullets.push({
                             x: e.x, y: e.y,
                             angle: angleToPlayer,
                             speed: 8,
                             life: 100,
-                            color: '#ff0055'
+                            color: e.color
                         });
                         e.lastFire = now;
                     }
@@ -453,33 +504,89 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 ctx.rotate(e.angle);
 
                 ctx.shadowBlur = 10;
-                ctx.shadowColor = '#ff0000';
+                ctx.shadowColor = e.color;
                 ctx.lineWidth = 3;
+                ctx.strokeStyle = e.color;
 
-                if (e.type === 'chaser') {
-                    // Triangle Insect
-                    ctx.strokeStyle = '#ff3300';
-                    ctx.beginPath();
-                    ctx.moveTo(15, 0);
-                    ctx.lineTo(-10, 10);
-                    ctx.lineTo(-5, 0);
-                    ctx.lineTo(-10, -10);
-                    ctx.closePath();
-                    ctx.stroke();
-                } else {
-                    // Shooter Ship
-                    ctx.strokeStyle = '#ff0055';
-                    ctx.beginPath();
-                    ctx.moveTo(10, 0);
-                    ctx.lineTo(-10, 15);
-                    ctx.lineTo(-5, 0);
-                    ctx.lineTo(-10, -15);
-                    ctx.closePath();
-                    ctx.stroke();
-                    // Glow Core
-                    ctx.fillStyle = 'rgba(255, 0, 85, 0.5)';
-                    ctx.fill();
+                // Draw based on type
+                switch(e.type) {
+                    case 'scout':
+                        // Triangle
+                        ctx.beginPath();
+                        ctx.moveTo(15, 0);
+                        ctx.lineTo(-10, 10);
+                        ctx.lineTo(-5, 0);
+                        ctx.lineTo(-10, -10);
+                        ctx.closePath();
+                        ctx.stroke();
+                        break;
+
+                    case 'stinger':
+                        // Diamond with core
+                        ctx.beginPath();
+                        ctx.moveTo(10, 0);
+                        ctx.lineTo(-10, 15);
+                        ctx.lineTo(-5, 0);
+                        ctx.lineTo(-10, -15);
+                        ctx.closePath();
+                        ctx.stroke();
+                        ctx.fillStyle = `${e.color}80`;
+                        ctx.fill();
+                        break;
+
+                    case 'weaver':
+                        // Hexagon
+                        ctx.beginPath();
+                        for (let i = 0; i < 6; i++) {
+                            const angle = (Math.PI / 3) * i;
+                            const x = Math.cos(angle) * 15;
+                            const y = Math.sin(angle) * 15;
+                            if (i === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        break;
+
+                    case 'splitter':
+                        // Star shape
+                        ctx.beginPath();
+                        for (let i = 0; i < 10; i++) {
+                            const angle = (Math.PI / 5) * i;
+                            const radius = i % 2 === 0 ? 15 : 7;
+                            const x = Math.cos(angle - Math.PI / 2) * radius;
+                            const y = Math.sin(angle - Math.PI / 2) * radius;
+                            if (i === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        break;
+
+                    case 'shieldbearer':
+                        // Large octagon
+                        ctx.beginPath();
+                        for (let i = 0; i < 8; i++) {
+                            const angle = (Math.PI / 4) * i;
+                            const x = Math.cos(angle) * 18;
+                            const y = Math.sin(angle) * 18;
+                            if (i === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+
+                        // Shield indicator
+                        if (e.shield && e.shield > 0) {
+                            ctx.strokeStyle = '#0088ff';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.arc(0, 0, 25, 0, (e.shield / 3) * Math.PI * 2);
+                            ctx.stroke();
+                        }
+                        break;
                 }
+
                 ctx.shadowBlur = 0;
                 ctx.restore();
             }
