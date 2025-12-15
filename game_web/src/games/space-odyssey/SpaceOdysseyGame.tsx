@@ -100,6 +100,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     useEffect(() => {
         imgBg.current.src = './space_bg.png';
         sensitivityRef.current = sensitivity;
+        // Start first wave on mount
+        waveManager.current.startWave();
     }, [sensitivity]);
 
     const state = useRef<GameState>({
@@ -450,6 +452,47 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
             }
 
+            // HUD - Render on canvas
+            ctx.font = 'bold 24px monospace';
+            ctx.fillStyle = '#00ffff';
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 10;
+            ctx.fillText(`SCORE: ${state.current.score}`, 20, 40);
+            
+            ctx.font = '14px monospace';
+            ctx.fillStyle = status === 'CONNECTED' ? '#0f0' : '#888';
+            ctx.shadowBlur = 0;
+            ctx.fillText(`STATUS: ${status}`, 20, 65);
+            
+            ctx.fillStyle = '#ffaa00';
+            ctx.fillText(`SCRAP: ${Math.floor(state.current.scrap)}`, 20, 85);
+            
+            ctx.font = 'bold 16px monospace';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`SECTOR ${sector} - WAVE ${waveNumber}`, 20, 110);
+            
+            // Health Bar (top right)
+            const barWidth = 300;
+            const barHeight = 20;
+            const barX = w - barWidth - 20;
+            const barY = 20;
+            
+            ctx.font = '12px monospace';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`SHIELD: ${Math.floor(state.current.player.health)}/${upgradeSystem.current.maxHealth}`, barX, barY - 5);
+            
+            // Bar background
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+            
+            // Bar fill
+            const healthPercent = state.current.player.health / upgradeSystem.current.maxHealth;
+            ctx.fillStyle = healthPercent > 0.3 ? '#00ffff' : '#ff0000';
+            ctx.shadowColor = ctx.fillStyle;
+            ctx.shadowBlur = 10;
+            ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+            ctx.shadowBlur = 0;
+
             const p = state.current.player;
 
             // Aimline
@@ -693,40 +736,7 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                 />
             )}
 
-            {/* UI Overlay */}
-            <div style={{ position: 'absolute', top: 20, left: 20, right: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'none', fontFamily: "'Outfit', monospace" }}>
-                {/* Score & Status */}
-                <div>
-                    <h2 style={{ margin: 0, textShadow: '0 0 10px cyan', fontSize: '2rem', color: 'white' }}>SCORE: {score}</h2>
-                    <div style={{ fontSize: '0.8rem', color: status === "CONNECTED" ? '#0f0' : '#888', marginTop: 5 }}>
-                        STATUS: {status}
-                    </div>
-                    <div style={{ fontSize: '0.9rem', color: '#ffaa00', marginTop: 10 }}>
-                        SCRAP: {Math.floor(scrap)}
-                    </div>
-                    <div style={{ fontSize: '1rem', color: '#fff', marginTop: 10, fontWeight: 'bold' }}>
-                        SECTOR {sector} - WAVE {waveNumber}
-                    </div>
-                </div>
 
-                {/* Health Bar */}
-                <div style={{ width: '300px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', marginBottom: '5px' }}>
-                        <span>SHIELD INTEGRITY</span>
-                        <span>{Math.floor(playerHp)}/{upgradeSystem.current.maxHealth}</span>
-                    </div>
-                    <div style={{ width: '100%', height: '10px', background: 'rgba(255,255,255,0.1)', borderRadius: '5px' }}>
-                        <div style={{
-                            width: `${Math.max(0, (playerHp / upgradeSystem.current.maxHealth) * 100)}%`,
-                            height: '100%',
-                            background: playerHp > upgradeSystem.current.maxHealth * 0.3 ? '#00ffff' : '#ff0000',
-                            borderRadius: '5px',
-                            boxShadow: `0 0 10px ${playerHp > upgradeSystem.current.maxHealth * 0.3 ? '#00ffff' : '#ff0000'}`,
-                            transition: 'width 0.2s'
-                        }} />
-                    </div>
-                </div>
-            </div>
 
             {/* Exit / Controls */}
             <div style={{ position: 'absolute', bottom: 20, right: 20, display: 'flex', gap: '20px', alignItems: 'flex-end', zIndex: 20 }}>
