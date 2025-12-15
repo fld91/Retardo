@@ -1,5 +1,9 @@
 export class SoundManager {
     ctx: AudioContext | null = null;
+    private lastShootTime: number = 0;
+    private lastExplosionTime: number = 0;
+    private readonly MIN_SHOOT_INTERVAL = 50; // ms
+    private readonly MIN_EXPLOSION_INTERVAL = 100; // ms
 
     constructor() {
         try {
@@ -13,7 +17,18 @@ export class SoundManager {
 
     playShoot() {
         if (!this.ctx) return;
+        
+        // Rate limiting
+        const now = Date.now();
+        if (now - this.lastShootTime < this.MIN_SHOOT_INTERVAL) return;
+        this.lastShootTime = now;
+        
         try {
+            // Resume if suspended
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+            
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
 
@@ -24,25 +39,40 @@ export class SoundManager {
             osc.frequency.setValueAtTime(880, this.ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(110, this.ctx.currentTime + 0.1);
 
-            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime); // Reduced volume
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
 
             osc.start(this.ctx.currentTime);
             osc.stop(this.ctx.currentTime + 0.1);
             
             // Clean up
-            setTimeout(() => {
-                osc.disconnect();
-                gain.disconnect();
-            }, 150);
+            osc.onended = () => {
+                try {
+                    osc.disconnect();
+                    gain.disconnect();
+                } catch (e) {
+                    // Already disconnected
+                }
+            };
         } catch (e) {
-            console.warn("Audio playback failed:", e);
+            // Silently fail - audio is not critical
         }
     }
 
     playExplosion() {
         if (!this.ctx) return;
+        
+        // Rate limiting
+        const now = Date.now();
+        if (now - this.lastExplosionTime < this.MIN_EXPLOSION_INTERVAL) return;
+        this.lastExplosionTime = now;
+        
         try {
+            // Resume if suspended
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+            
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
 
@@ -53,25 +83,31 @@ export class SoundManager {
             osc.frequency.setValueAtTime(100, this.ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(1, this.ctx.currentTime + 0.3);
 
-            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.1, this.ctx.currentTime); // Reduced volume
             gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
 
             osc.start(this.ctx.currentTime);
             osc.stop(this.ctx.currentTime + 0.3);
             
             // Clean up
-            setTimeout(() => {
-                osc.disconnect();
-                gain.disconnect();
-            }, 350);
+            osc.onended = () => {
+                try {
+                    osc.disconnect();
+                    gain.disconnect();
+                } catch (e) {
+                    // Already disconnected
+                }
+            };
         } catch (e) {
-            console.warn("Audio playback failed:", e);
+            // Silently fail - audio is not critical
         }
     }
 
     resume() {
         if (this.ctx?.state === 'suspended') {
-            this.ctx.resume();
+            this.ctx.resume().catch(() => {
+                // Ignore resume errors
+            });
         }
     }
 }
