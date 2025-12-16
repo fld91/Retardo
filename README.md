@@ -101,22 +101,22 @@ flutter run --release
 - **Supported**: Firefox, Safari, OperaGX.
 - **Platform**: PC (Windows, Mac, Linux).
 
-### 📦 Adding APK to Repository
+### 📦 Download & Install
 
-You can store the compiled APK in this repository for easy access:
+The Android Controller App (APK) is included in this repository!
 
-1. **Build the APK**:
-   ```bash
-   cd controller_app
-   flutter build apk --release
-   ```
-2. **Locate the file**:
-   `controller_app/build/app/outputs/flutter-apk/app-release.apk`
-3. **Copy to repo**:
-   Copy the file to the `apk/` folder in the root directory.
-4. **Commit**:
-   `git add apk/app-release.apk`
-   `git commit -m "Add release APK"`
+1. **Visit this page on your Android phone**.
+2. Navigate to the **`apk/`** folder above.
+3. Click on **`GenesisController.apk`** and tap **Download**.
+4. Open the downloaded file and tap **Install**.
+   > _Note: You may need to enable "Install from unknown sources" in your device settings._
+
+**Building from Source (Optional)**
+
+```bash
+cd controller_app
+flutter build apk --release
+```
 
 ---
 
