@@ -244,7 +244,19 @@ Spend scrap on 8 powerful upgrades:
 
 ---
 
-## 🔧 Troubleshooting
+## � Gallery
+
+<div align="center">
+  <img src="screenshots/launcher.png" alt="Genesis Launcher" width="45%" style="margin: 5px;" />
+  <img src="screenshots/gameplay.png" alt="Space Odyssey Gameplay" width="45%" style="margin: 5px;" />
+  <br/>
+  <img src="screenshots/controller.jpg" alt="Mobile Controller" width="45%" style="margin: 5px;" />
+  <img src="screenshots/game_over.png" alt="Mission Failed" width="45%" style="margin: 5px;" />
+</div>
+
+---
+
+## �🔧 Troubleshooting
 
 ### Game Won't Start
 
