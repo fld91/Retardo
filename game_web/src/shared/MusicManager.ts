@@ -117,17 +117,7 @@ export class MusicManager {
         const melody = melodies[sector as keyof typeof melodies] || melodies[1];
         let noteIndex = 0;
 
-        // Bass line (continuous)
-        const bass = this.ctx.createOscillator();
-        const bassGain = this.ctx.createGain();
-        bass.type = 'sawtooth';
-        bass.frequency.setValueAtTime(melody[0] / 2, this.ctx.currentTime);
-        bassGain.gain.value = 0.1;
-        bass.connect(bassGain);
-        bassGain.connect(this.masterGain);
-        bass.start();
-        this.oscillators.push(bass);
-        this.gainNodes.push(bassGain);
+        // Bass line removed (User request)
 
         // Melody loop (90s arcade style)
         this.intervalId = window.setInterval(() => {
@@ -152,17 +142,7 @@ export class MusicManager {
         const notes = [131, 165, 196, 165]; // C3, E3, G3, E3
         let noteIndex = 0;
 
-        // Aggressive bass
-        const bass = this.ctx.createOscillator();
-        const bassGain = this.ctx.createGain();
-        bass.type = 'sawtooth';
-        bass.frequency.setValueAtTime(65, this.ctx.currentTime);
-        bassGain.gain.value = 0.15;
-        bass.connect(bassGain);
-        bassGain.connect(this.masterGain);
-        bass.start();
-        this.oscillators.push(bass);
-        this.gainNodes.push(bassGain);
+        // Aggressive bass removed (User request)
 
         // Fast arpeggio
         this.intervalId = window.setInterval(() => {

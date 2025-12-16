@@ -26,16 +26,27 @@ wss.on('connection', (ws, req) => {
             // For now, if it looks like controller data, broadcast to games.
 
             const data = JSON.parse(message);
+            
+            // DEBUG LOGGING
+            if (data.type === 'vibrate') {
+                console.log(`📳 Vibration request: ${data.duration}ms from ${ip}`);
+            }
 
             // Add server timestamp for latency tracking
             data.server_ts = Date.now();
 
             // Broadcast to all other clients (Game)
+            let broadcastCount = 0;
             wss.clients.forEach((client) => {
                 if (client !== ws && client.readyState === WebSocket.OPEN) {
                     client.send(JSON.stringify(data));
+                    broadcastCount++;
                 }
             });
+            
+            if (data.type === 'vibrate' && broadcastCount === 0) {
+                 console.warn("⚠️ Vibration sent but no clients connected to receive it!");
+            }
 
         } catch (e) {
             console.error('Invalid message:', e);

@@ -85,6 +85,41 @@ flutter run --release
 
 ---
 
+## 📱 Compatibility & Deployment
+
+### ✅ Eligibility & Requirements
+
+**Android Controller App:**
+
+- **OS Version**: Android 5.0 (Lollipop) or higher (API Level 21+).
+- **Hardware**: **Gyroscope** and **Accelerometer** are REQUIRED.
+- **Screen**: Works on any generic screen size (Phone/Tablet).
+
+**Game Client (Web):**
+
+- **Reference Browser**: Google Chrome or Microsoft Edge (Latest).
+- **Supported**: Firefox, Safari, OperaGX.
+- **Platform**: PC (Windows, Mac, Linux).
+
+### 📦 Adding APK to Repository
+
+You can store the compiled APK in this repository for easy access:
+
+1. **Build the APK**:
+   ```bash
+   cd controller_app
+   flutter build apk --release
+   ```
+2. **Locate the file**:
+   `controller_app/build/app/outputs/flutter-apk/app-release.apk`
+3. **Copy to repo**:
+   Copy the file to the `apk/` folder in the root directory.
+4. **Commit**:
+   `git add apk/app-release.apk`
+   `git commit -m "Add release APK"`
+
+---
+
 ## 🎮 Space Odyssey - Gameplay Guide
 
 ### Starting the Game

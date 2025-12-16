@@ -103,6 +103,8 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
     const [waveAnnouncement, setWaveAnnouncement] = useState<string>(''); // Tekken-style announcement
     const [upgradesGenerated, setUpgradesGenerated] = useState<boolean>(false); // Prevent regeneration
     const lastSpawnCheck = useRef<number>(0);
+    const gameOverTimeRef = useRef<number>(0); // Cooldown timer
+    const bossActiveRef = useRef<boolean>(false); // Track boss state for vibration
 
     // Images (Background only)
     const imgBg = useRef<HTMLImageElement>(new Image());
@@ -183,19 +185,12 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
         ws.onclose = () => setStatus("DISCONNECTED");
         ws.onerror = () => setStatus("CONNECTION ERROR");
 
-        ws.onmessage = (event) => {
-            try {
-                const data: ControllerPacket = JSON.parse(event.data);
-                handleInput(data);
-            } catch (e) {
-                console.error(e);
-            }
-        };
-
-        const handleInput = (data: ControllerPacket) => {
+        function handleInput(data: ControllerPacket) {
             if (state.current.gameOver) {
-                // If game over, "Fire" button resets
-                if (data.fire) resetGame();
+                // Prevent instant reset - Must wait 2 seconds (allows death vibration to finish)
+                if (data.fire && (Date.now() - gameOverTimeRef.current > 2000)) {
+                    resetGame();
+                }
                 return;
             }
 
@@ -215,6 +210,15 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             }
             if (data.fire) {
                 shoot();
+            }
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data: ControllerPacket = JSON.parse(event.data);
+                handleInput(data);
+            } catch (e) {
+                console.error(e);
             }
         };
 
@@ -268,6 +272,37 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
             const s = state.current;
             const now = Date.now();
             
+            // Trigger Boss Spawning Logic if needed
+            // ...
+
+            // BOSS VIBRATION LOGIC
+            // Detect entry/exit of boss mode to trigger "Heartbeat" vibration
+            if (s.boss && !bossActiveRef.current) {
+                bossActiveRef.current = true;
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: 'heartbeat',
+                        enabled: true
+                    }));
+                }
+            } else if (!s.boss && bossActiveRef.current) {
+                bossActiveRef.current = false;
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: 'heartbeat',
+                        enabled: false
+                    }));
+                }
+            } else if (s.gameOver && bossActiveRef.current) {
+                // Ensure heartbeat stops on death
+                bossActiveRef.current = false;
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        type: 'heartbeat',
+                        enabled: false
+                    }));
+                }
+            }
             // Throttle spawn checks to every 100ms instead of 60fps
             const shouldCheckSpawn = now - lastSpawnCheck.current >= 100;
             if (shouldCheckSpawn) {
@@ -436,19 +471,34 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     spawnParticles(b.x, b.y, '#00ffff', 5);
                     soundManager.current.playExplosion(); // Enemy hit sound
                     
-                    // Send strong vibration to phone controller
-                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                        wsRef.current.send(JSON.stringify({
-                            type: 'vibrate',
-                            duration: 200, // Strong 200ms vibration
-                            intensity: 'heavy'
-                        }));
-                    }
-                    
-                    if (s.player.health <= 0 && !s.gameOver) {
+                    // Check Death Status FIRST
+                    const isDead = s.player.health <= 0;
+                    const isFirstDeathFrame = isDead && !s.gameOver;
+
+                    if (isFirstDeathFrame) {
                         s.gameOver = true;
                         setGameOver(true);
+                        gameOverTimeRef.current = Date.now(); // Start cooldown timer
                         soundManager.current.playExplosion();
+                        
+                        // DEATH VIBRATION: 1 second long
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                                type: 'vibrate',
+                                duration: 500, 
+                                intensity: 'heavy'
+                            }));
+                        }
+                    } 
+                    else if (!isDead) {
+                        // ALIVE HIT VIBRATION (200ms)
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                                type: 'vibrate',
+                                duration: 200, 
+                                intensity: 'heavy'
+                            }));
+                        }
                     }
                     continue;
                 }
@@ -491,8 +541,18 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                         setPlayerHp(0);
                         s.gameOver = true;
                         setGameOver(true);
+                        gameOverTimeRef.current = Date.now();
                         spawnParticles(s.player.x, s.player.y, '#00ffff', 50);
                         soundManager.current.playExplosion();
+
+                        // DEATH VIBRATION (Collision)
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                                type: 'vibrate',
+                                duration: 1000, 
+                                intensity: 'heavy'
+                            }));
+                        }
                     }
                 }
 
@@ -541,8 +601,18 @@ const Game: React.FC<GameProps> = ({ onBack }) => {
                     setPlayerHp(0);
                     s.gameOver = true;
                     setGameOver(true);
+                    gameOverTimeRef.current = Date.now();
                     spawnParticles(s.player.x, s.player.y, '#00ffff', 50);
                     soundManager.current.playExplosion();
+
+                    // DEATH VIBRATION (Boss Collision)
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({
+                            type: 'vibrate',
+                            duration: 1000, 
+                            intensity: 'heavy'
+                        }));
+                    }
                 }
 
                 // Boss shooting

@@ -24,6 +24,8 @@ class _ControllerScreenState extends State<ControllerScreen> {
   );
   WebSocketChannel? _channel;
   bool _isConnected = false;
+  bool _isVibrating = false; // Visual feedback state
+  Timer? _vibrationTimer; // For heartbeat patterns
 
   // Game State
   Offset _aim = const Offset(
@@ -75,6 +77,60 @@ class _ControllerScreenState extends State<ControllerScreen> {
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));
+
+      // Listen for messages (DATA FROM GAME CLIENT)
+      _channel!.stream.listen(
+        (message) {
+          try {
+            final data = jsonDecode(message);
+            // Check for Haptic Feedback command
+            if (data['type'] == 'vibrate') {
+              int duration = data['duration'] ?? 100;
+
+              // 1. Hardware Vibration
+              Vibration.vibrate(duration: duration);
+
+              // 2. Visual Feedback (Flash RED)
+              setState(() {
+                _isVibrating = true;
+              });
+
+              // Turn off visual flash after duration
+              Future.delayed(Duration(milliseconds: duration), () {
+                if (mounted) {
+                  setState(() {
+                    _isVibrating = false;
+                  });
+                }
+              });
+            }
+            // Check for Pattern Command (Heartbeat)
+            else if (data['type'] == 'heartbeat') {
+              bool enabled = data['enabled'] ?? false;
+              _vibrationTimer?.cancel();
+
+              if (enabled) {
+                // Heartbeat: 50ms pulse every 1000ms
+                _vibrationTimer = Timer.periodic(
+                  const Duration(milliseconds: 500),
+                  (timer) {
+                    Vibration.vibrate(duration: 50);
+                  },
+                );
+              }
+            }
+          } catch (e) {
+            // Ignore malformed data
+          }
+        },
+        onError: (error) {
+          _disconnect();
+        },
+        onDone: () {
+          _disconnect();
+        },
+      );
+
       setState(() {
         _isConnected = true;
       });
@@ -266,6 +322,9 @@ class _ControllerScreenState extends State<ControllerScreen> {
         }
       },
       child: Scaffold(
+        backgroundColor: _isVibrating
+            ? Colors.redAccent.withOpacity(0.5)
+            : null,
         body: Stack(
           children: [
             // Connection Status / HUD

@@ -37,13 +37,13 @@ export class UpgradeSystem {
             // Weapon upgrades
             {
                 id: 'dual_cannons',
-                name: 'Dual Cannons',
-                description: 'Fire 2 bullets per shot',
+                name: 'Multishot',
+                description: '+1 bullet per shot',
                 category: 'weapon',
                 icon: '⚡',
                 cost: 100,
                 effect: () => {
-                    this.bulletsPerShot = 2;
+                    this.bulletsPerShot += 1;
                 }
             },
             {
@@ -99,7 +99,11 @@ export class UpgradeSystem {
                 icon: '🔰',
                 cost: 120,
                 effect: () => {
-                    this.damageResistance = 0.2;
+                    // Diminishing returns calculation or simple cap could be added
+                    // For now, let's just stack it multiplicatively for safety (1 - 0.2 = 0.8)
+                    const currentDamageTaken = 1 - this.damageResistance;
+                    const newDamageTaken = currentDamageTaken * 0.8;
+                    this.damageResistance = 1 - newDamageTaken;
                 }
             },
             {
@@ -110,7 +114,7 @@ export class UpgradeSystem {
                 icon: '💚',
                 cost: 150,
                 effect: () => {
-                    this.healthRegen = 1;
+                    this.healthRegen += 1;
                 }
             },
             // Mobility upgrades
@@ -127,20 +131,18 @@ export class UpgradeSystem {
             }
         ];
 
-        // Filter out already owned upgrades
-        const available = allUpgrades.filter(u => !this.activeUpgrades.has(u.id));
-        
-        // Shuffle and pick 3
-        const shuffled = available.sort(() => Math.random() - 0.5);
+        // Shuffle and pick 3 (Allow duplicates in pool? No, we want 3 distinct OPTIONS, but we can allow buying them even if we have them)
+        const shuffled = allUpgrades.sort(() => Math.random() - 0.5);
         return shuffled.slice(0, 3);
     }
 
     purchaseUpgrade(upgrade: Upgrade) {
         if (this.scrap < upgrade.cost) return false;
-        if (this.activeUpgrades.has(upgrade.id)) return false;
+        
+        // ALLOW STACKING - Removed the check for activeUpgrades.has(id)
 
         this.scrap -= upgrade.cost;
-        this.activeUpgrades.add(upgrade.id);
+        this.activeUpgrades.add(upgrade.id); // Still track history if needed
         upgrade.effect();
         return true;
     }
